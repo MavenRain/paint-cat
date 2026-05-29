@@ -1,0 +1,23 @@
+[package]
+name = "paint-cat"
+version = "0.1.0"
+edition = "2024"
+description = "Display-list construction: walks a layout-cat LayoutTree and emits a sequence of PaintCommands (FillRect, StrokeRect, FillText) for a backend renderer to consume. Backend-agnostic; no platform graphics dependencies. No mut, no Rc/Arc, no interior mutability, no panics, exhaustive matches. Fifth sub-crate of a Servo-replacement webview runtime targeting Tauri."
+license = "MIT OR Apache-2.0"
+keywords = ["paint", "display-list", "render", "layout", "type-driven"]
+categories = ["web-programming", "graphics"]
+
+[dependencies]
+layout-cat = "0.1"
+dom-cat = "0.1"
+
+[dev-dependencies]
+proptest = "1"
+html-cat = "0.1"
+css-cat = "0.1"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+needless_pass_by_value = "warn"
+manual_map = "warn"
