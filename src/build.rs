@@ -17,11 +17,7 @@ pub fn build(tree: &LayoutTree, dom: &Document) -> DisplayList {
     DisplayList::new(commands)
 }
 
-fn paint_box(
-    layout_box: &LayoutBox,
-    dom: &Document,
-    acc: Vec<PaintCommand>,
-) -> Vec<PaintCommand> {
+fn paint_box(layout_box: &LayoutBox, dom: &Document, acc: Vec<PaintCommand>) -> Vec<PaintCommand> {
     let with_bg = emit_background(layout_box, acc);
     let with_border = emit_borders(layout_box, with_bg);
     let with_text = emit_text(layout_box, dom, with_border);
@@ -37,13 +33,7 @@ fn emit_background(layout_box: &LayoutBox, acc: Vec<PaintCommand>) -> Vec<PaintC
         acc
     } else {
         let rect = padding_box_rect(layout_box);
-        append(
-            acc,
-            PaintCommand::FillRect {
-                rect,
-                color,
-            },
-        )
+        append(acc, PaintCommand::FillRect { rect, color })
     }
 }
 
@@ -110,16 +100,11 @@ fn emit_borders(layout_box: &LayoutBox, acc: Vec<PaintCommand>) -> Vec<PaintComm
     }
 }
 
-fn emit_text(
-    layout_box: &LayoutBox,
-    dom: &Document,
-    acc: Vec<PaintCommand>,
-) -> Vec<PaintCommand> {
+fn emit_text(layout_box: &LayoutBox, dom: &Document, acc: Vec<PaintCommand>) -> Vec<PaintCommand> {
     let dom_id = layout_box.dom_node();
     let text_children: Vec<String> = dom
         .get(dom_id)
-        .map(Node::children)
-        .unwrap_or(&[])
+        .map_or(&[][..], Node::children)
         .iter()
         .filter_map(|&child_id| match dom.get(child_id) {
             Some(Node::Text(t)) => Some(t.content().to_owned()),
@@ -160,7 +145,10 @@ fn padding_box_rect(layout_box: &LayoutBox) -> Rect {
     let content = layout_box.rect();
     let p = layout_box.padding();
     Rect::new(
-        Point::new(content.origin().x() - p.left(), content.origin().y() - p.top()),
+        Point::new(
+            content.origin().x() - p.left(),
+            content.origin().y() - p.top(),
+        ),
         content.width() + p.left() + p.right(),
         content.height() + p.top() + p.bottom(),
     )
@@ -175,4 +163,3 @@ fn border_box_rect(layout_box: &LayoutBox) -> Rect {
         pad.height() + b.top() + b.bottom(),
     )
 }
-

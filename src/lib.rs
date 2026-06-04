@@ -10,7 +10,7 @@
 //!     .map_err(|_| paint_cat::Error::Dom(dom_cat::Error::InvalidSelector { selector: String::new() }))?;
 //! let dom = dom_cat::Document::from_html_doc(&html_doc);
 //! let sheet = css_cat::parse("p { background-color: red; padding: 8px; }")
-//!     .map_err(paint_cat::Error::from)?;
+//!     .map_err(|_| paint_cat::Error::Dom(dom_cat::Error::InvalidSelector { selector: String::new() }))?;
 //! let tree = layout_cat::layout(&dom, &sheet, layout_cat::Viewport::new(800, 600));
 //! let display_list = build(&tree, &dom);
 //! assert!(!display_list.commands().is_empty());

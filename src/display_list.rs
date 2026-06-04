@@ -38,4 +38,29 @@ impl DisplayList {
     pub fn is_empty(&self) -> bool {
         self.commands.is_empty()
     }
+
+    /// Return a new [`DisplayList`] with every [`PaintCommand`]
+    /// scaled by `factor` via [`PaintCommand::scaled`].  See that
+    /// method for the per-variant semantics; the order and count of
+    /// commands is preserved.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use layout_cat::{Color, Point, Rect};
+    /// use paint_cat::{DisplayList, PaintCommand};
+    ///
+    /// let list = DisplayList::new(vec![PaintCommand::FillRect {
+    ///     rect: Rect::new(Point::new(0.0, 0.0), 10.0, 10.0),
+    ///     color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+    /// }]);
+    /// let zoomed = list.scaled(2.0);
+    /// let _ = zoomed.len();
+    /// ```
+    #[must_use]
+    pub fn scaled(&self, factor: f64) -> Self {
+        Self {
+            commands: self.commands.iter().map(|cmd| cmd.scaled(factor)).collect(),
+        }
+    }
 }

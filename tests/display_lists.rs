@@ -13,7 +13,7 @@ fn fail(_msg: &'static str) -> Error {
 fn run(html: &str, css: &str) -> Result<DisplayList, Error> {
     let html_doc = html_cat::parse(html).map_err(|_| fail("html parse"))?;
     let dom = dom_cat::Document::from_html_doc(&html_doc);
-    let sheet = css_cat::parse(css).map_err(Error::from)?;
+    let sheet = css_cat::parse(css).map_err(|_| fail("css parse"))?;
     let tree = layout_cat::layout(&dom, &sheet, layout_cat::Viewport::new(800, 600));
     Ok(build(&tree, &dom))
 }
@@ -86,24 +86,112 @@ fn parent_before_child() -> Result<(), Error> {
         "<html><body><div><p>x</p></div></body></html>",
         "div { background-color: blue; height: 50px; } p { background-color: red; }",
     )?;
-    let positions: Vec<Option<f64>> = list
+    let positions: Vec<u8> = list
         .commands()
         .iter()
-        .map(|c| match c {
+        .filter_map(|c| match c {
             PaintCommand::FillRect { color, .. } if color.blue() > 0.5 && color.red() < 0.5 => {
-                Some(0.0)
+                Some(0_u8)
             }
             PaintCommand::FillRect { color, .. } if color.red() > 0.5 && color.blue() < 0.5 => {
-                Some(1.0)
+                Some(1_u8)
             }
-            _other => None,
+            PaintCommand::FillRect { .. }
+            | PaintCommand::StrokeRect { .. }
+            | PaintCommand::FillText { .. } => None,
         })
-        .filter_map(|p| p)
         .collect();
-    // We expect the blue (parent) to come before the red (child) in
-    // paint order.
-    let pair = positions.iter().take(2).copied().collect::<Vec<_>>();
-    (pair.first() == Some(&0.0) && pair.get(1) == Some(&1.0))
+    (positions.first() == Some(&0) && positions.get(1) == Some(&1))
         .then_some(())
         .ok_or_else(|| fail("parent-before-child order broken"))
+}
+
+#[test]
+fn scaled_fillrect_doubles_geometry() -> Result<(), Error> {
+    use layout_cat::{Color, Point, Rect};
+    let cmd = PaintCommand::FillRect {
+        rect: Rect::new(Point::new(10.0, 20.0), 100.0, 50.0),
+        color: Color::rgba(0.0, 0.0, 0.0, 1.0),
+    };
+    match cmd.scaled(2.0) {
+        PaintCommand::FillRect { rect, .. } => (rect.origin().x() == 20.0
+            && rect.origin().y() == 40.0
+            && rect.width() == 200.0
+            && rect.height() == 100.0)
+            .then_some(())
+            .ok_or_else(|| fail("FillRect geometry did not double")),
+        PaintCommand::StrokeRect { .. } | PaintCommand::FillText { .. } => {
+            Err(fail("expected FillRect variant"))
+        }
+    }
+}
+
+#[test]
+fn scaled_filltext_scales_font_size() -> Result<(), Error> {
+    use layout_cat::{Color, Point, Rect};
+    let cmd = PaintCommand::FillText {
+        rect: Rect::new(Point::new(0.0, 0.0), 100.0, 30.0),
+        text: "hi".to_owned(),
+        color: Color::rgba(0.0, 0.0, 0.0, 1.0),
+        font_size: 16.0,
+    };
+    match cmd.scaled(1.5) {
+        PaintCommand::FillText {
+            font_size, rect, ..
+        } => ((font_size - 24.0).abs() < f64::EPSILON
+            && (rect.width() - 150.0).abs() < f64::EPSILON)
+            .then_some(())
+            .ok_or_else(|| fail("FillText font_size or rect did not scale")),
+        PaintCommand::FillRect { .. } | PaintCommand::StrokeRect { .. } => {
+            Err(fail("expected FillText variant"))
+        }
+    }
+}
+
+#[test]
+fn scaled_strokerect_triples_width() -> Result<(), Error> {
+    use layout_cat::{Color, Point, Rect};
+    let cmd = PaintCommand::StrokeRect {
+        rect: Rect::new(Point::new(0.0, 0.0), 100.0, 50.0),
+        color: Color::rgba(0.0, 0.0, 0.0, 1.0),
+        width: 2.0,
+    };
+    match cmd.scaled(3.0) {
+        PaintCommand::StrokeRect { width, .. } => ((width - 6.0).abs() < f64::EPSILON)
+            .then_some(())
+            .ok_or_else(|| fail("StrokeRect width did not triple")),
+        PaintCommand::FillRect { .. } | PaintCommand::FillText { .. } => {
+            Err(fail("expected StrokeRect variant"))
+        }
+    }
+}
+
+#[test]
+fn display_list_scaled_preserves_order_and_count() -> Result<(), Error> {
+    use layout_cat::{Color, Point, Rect};
+    let original = DisplayList::new(vec![
+        PaintCommand::FillRect {
+            rect: Rect::new(Point::new(0.0, 0.0), 10.0, 10.0),
+            color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+        },
+        PaintCommand::FillText {
+            rect: Rect::new(Point::new(10.0, 10.0), 80.0, 20.0),
+            text: "x".to_owned(),
+            color: Color::rgba(0.0, 0.0, 0.0, 1.0),
+            font_size: 12.0,
+        },
+    ]);
+    let scaled = original.scaled(2.0);
+    let same_count = scaled.len() == original.len();
+    let first_is_fillrect = matches!(
+        scaled.commands().first(),
+        Some(PaintCommand::FillRect { .. })
+    );
+    let second_is_filltext = matches!(
+        scaled.commands().get(1),
+        Some(PaintCommand::FillText { .. })
+    );
+    (same_count && first_is_fillrect && second_is_filltext)
+        .then_some(())
+        .ok_or_else(|| fail("scaled list lost count or reordered"))
 }
